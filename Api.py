@@ -1,5 +1,9 @@
+#uvicorn Api.py:app --reload
+
+
 from fastapi import FastAPI
 from fastapi import WebSocket
+from fastapi.middleware.cors import CORSMiddleware
 
 import firebase_admin
 from firebase_admin import credentials
@@ -7,12 +11,22 @@ from firebase_admin import firestore
 import User
 
 
-from pydantic import BaseModel
+# from pydantic import BaseModel
 import datetime
 from uuid import uuid4
 
 
 app = FastAPI()
+
+origins = ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 DB_CERT = 'roldo_DB.json'
 cred = credentials.Certificate(DB_CERT)
@@ -26,7 +40,7 @@ def home():
     return {"Data":"Test"}
 
 @app.post("/user/register")
-def register(user:User):
+def register(user:User.User):
     user = db.collection(u'users').document(f'{user.email}').get()
     if user.to_dict() == None:
         db.collection(u'users').document(f'{user.email}').set({
