@@ -1,6 +1,7 @@
 #uvicorn Api.py:app --reload
 
 
+import Login
 from fastapi import FastAPI
 from fastapi import WebSocket
 from fastapi.middleware.cors import CORSMiddleware
@@ -41,8 +42,8 @@ def home():
 
 @app.post("/user/register")
 def register(user:User.User):
-    user = db.collection(u'users').document(f'{user.email}').get()
-    if user.to_dict() == None:
+    db_user = db.collection(u'users').document(f'{user.email}').get()
+    if not db_user.exists:
         db.collection(u'users').document(f'{user.email}').set({
             'password': user.password,
             'email': user.email,
@@ -52,11 +53,11 @@ def register(user:User.User):
         return False
 
 @app.post("/user/login")
-def login(email, password):
-    user = db.collection(u'users').document(f'{email}').get()
-    if user.to_dict()['password'] == password:
+def login(login:Login.Login):
+    user = db.collection(u'users').document(f'{login.email}').get()
+    if user.to_dict()['password'] == login.password:
         tok=generate_token()
-        KEYS[email] = tok
+        KEYS[login.email] = tok
         return tok
     else:
         return False
@@ -74,7 +75,7 @@ def save_emotion_data(user_email, emotion_data):
     db.collection(u'users').document(f'{user_email}').collection(u'emotions').document(get_actual_time()).set(emotion_data)
 
 @app.post("/user/send_message")
-def send_message(user_email, message,token):
+def add_message(user_email, message,token):
     if check_token(token):
         db.collection(u'users').document(f'{user_email}').collection(u'messages').document(get_actual_time()).set(message)
     else:
@@ -87,21 +88,26 @@ def get_messages(user_email,token):
     else:
         return False
 
-@app.get("/user/add_to_journal")
-def add_to_journal(user_email, journal_data,token):
-    if check_token(token):
-        db.collection(u'users').document(f'{user_email}').collection(u'journal').document(get_actual_time()).set(journal_data)
-        return False
-    else:
-        return False
+@app.post("/user/edit_message")
+
+@app.post("/user/add_to_journal")
+def add_to_journal(email, data,token):
+    # if check_token(token):
+    db.collection(u'users').document(f'{email}').collection(u'journal').document(get_actual_time()).set({"data":data})
+    return True
+    # else:
+        # return False
 
 @app.get("/user/get_journal")
-def get_journal(user_email,token):
-    if check_token(token):
-        journal = db.collection(u'users').document(f'{user_email}').collection(u'journal').get()
-        return journal
-    else:
-        return False
+def get_journal(email,token):
+    # if check_token(token):
+    journal = db.collection(u'users').document(f'{email}').collection(u'journal').stream()
+    out={}
+    for doc in journal:
+        out[doc.id]=doc.to_dict()
+    return out
+    # else:
+        # return False
 
 @app.get("/user/destroy_token")
 def destroy_token(token):
@@ -110,11 +116,20 @@ def destroy_token(token):
             KEYS.pop(key)
             return True
     return False
- 
+
+@app.get("/user/recover_token")
+def recover_token(user_email):
+    if user_email in KEYS:
+        return KEYS[user_email]
+    else:
+        return False
+
+
 @app.websocket("/emotion")
-async def websocket_endpoint(websocket: WebSocket,token):
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    token = await websocket.receive_text()
     if check_token(token):
-        await websocket.accept()
         while True:
             data = await websocket.receive_text()
             save_emotion_data(data)
