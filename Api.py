@@ -111,12 +111,13 @@ def get_messages(token):
 # @app.post("/user/edit_message")
 
 @app.post("/user/add_to_journal")
-def add_to_journal(email, data,token):
-    # if check_token(token):
-    db.collection(u'users').document(f'{email}').collection(u'journal').document(get_actual_time()).set({"data":data})
-    return True
-    # else:
-        # return False
+def add_to_journal(data,token):
+    if check_token(token):
+        email = get_email_from_token(token)
+        db.collection(u'users').document(f'{email}').collection(u'journal').document(get_actual_time()).set({"data":data})
+        return True
+    else:
+        return False
 
 @app.get("/user/get_journal")
 def get_journal(token):
